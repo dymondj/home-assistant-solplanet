@@ -664,12 +664,11 @@ class SolplanetClient:
     def __init__(self, host: str, session: ClientSession) -> None:
         """Create instance of solplanet http client."""
         self.host = host
-        self.port = 8484
         self.session = session
 
     def get_url(self, endpoint: str) -> str:
         """Get URL for specified endpoint."""
-        return "http://" + self.host + ":" + str(self.port) + "/" + endpoint
+        return "{}/{}".format(self.host, endpoint)
 
     async def get(self, endpoint: str):
         """Make get request to specified endpoint."""
