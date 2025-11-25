@@ -673,13 +673,13 @@ class SolplanetClient:
     async def get(self, endpoint: str):
         """Make get request to specified endpoint."""
         return await self._parse_response(
-            await self.session.get(self.get_url(endpoint))
+            await self.session.get(self.get_url(endpoint), ssl=False)
         )
 
     async def post(self, endpoint: str, data: Any):
         """Make get request to specified endpoint."""
         return await self._parse_response(
-            await self.session.post(self.get_url(endpoint), json=data)
+            await self.session.post(self.get_url(endpoint), json=data, ssl=False)
         )
 
     async def _parse_response(self, response: ClientResponse):
