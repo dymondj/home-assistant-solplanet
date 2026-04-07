@@ -1,5 +1,7 @@
 """Solplanet client for solplanet integration."""
 
+from __future__ import annotations
+
 import base64
 from dataclasses import dataclass
 from inspect import signature
@@ -185,7 +187,14 @@ class GetMeterInfoResponse:
         name: Meter name
         model: Meter model code
         abs: Absolute value flag
-        offset: Offset value
+        abs_offset: Offset value
+        sec_enb: Submeter enabled
+        sec_sn:	Subeter serial number
+        sec_manufactory: Manufacturer name
+        sec_name: Submeter name
+        sec_mod: ?
+        sec_meter_location: Submeter control type
+        sec_addr: Modbus address
 
     """
 
@@ -204,7 +213,14 @@ class GetMeterInfoResponse:
     name: str | None = None
     model: int | None = None
     abs: int | None = None
-    offset: int | None = None
+    abs_offset: int | None = None
+    sec_enb: int | None = None
+    sec_sn: str | None = None
+    sec_manufactory: str | None = None
+    sec_name: str | None = None
+    sec_mod: int | None = None
+    sec_meter_location: int | None = None
+    sec_addr: int | None = None
 
 
 @dataclass
@@ -513,7 +529,7 @@ class ScheduleSlot:
         """Create slot from raw inverter code."""
         if code == 0:
             return None
-            
+
         discharge_bit = code & 0x1
         duration_bits = (code >> 14) & 0x3
         half_hour_bit = (code >> 17) & 0x1
@@ -538,7 +554,7 @@ class ScheduleSlot:
             raise ValueError("Duration must be between 1 and 4 hours")
         if mode not in ["charge", "discharge"]:
             raise ValueError("Mode must be 'charge' or 'discharge'")
-            
+
         return cls(
             start_hour=hour,
             start_minute=minute,
@@ -562,12 +578,12 @@ class ScheduleSlot:
         """Convert slot to raw inverter format."""
         if self.start_minute not in [0, 30]:
             raise ValueError("Minutes must be 0 or 30")
-            
+
         BASE = 0x3C02
         HOUR = 0x1000000
         HALF = 0x1E0000
         DURATION = 0x3C00
-        
+
         return (BASE +
                 (self.start_hour * HOUR) +
                 ((self.start_minute // 30) * HALF) +
@@ -585,7 +601,7 @@ class ScheduleSlot:
 
     def human_readable(self, format: str = "{start} - {end} ({mode})") -> str:
         """Convert slot to human readable string.
-        
+
         Args:
             format: Format string with {start}, {end}, {mode} placeholders
         """
@@ -607,19 +623,19 @@ class ScheduleSlot:
         """Validate a list of slots."""
         if len(slots) > 6:
             raise ValueError("Maximum 6 slots per day allowed")
-            
+
         sorted_slots = sorted(slots, key=lambda x: (x.start_hour, x.start_minute))
-        
+
         for i, slot in enumerate(sorted_slots):
             slot.validate_duration()
-            
+
             if i < len(sorted_slots) - 1:
                 next_slot = sorted_slots[i + 1]
                 current_end = slot.start_hour + slot.duration
                 current_end_mins = slot.start_minute
                 next_start = next_slot.start_hour
                 next_start_mins = next_slot.start_minute
-                
+
                 if (current_end > next_start) or (current_end == next_start and current_end_mins > next_start_mins):
                     raise ValueError(f"Slot {slot.human_readable()} overlaps with {next_slot.human_readable()}")
 
@@ -646,7 +662,7 @@ class BatterySchedule:
         for day_slots in slots.values():
             if day_slots:  # Only validate if there are slots
                 ScheduleSlot.validate_slots(day_slots)
-                
+
         return {
             **{
                 day: [slot.to_raw() for slot in day_slots]
@@ -724,6 +740,12 @@ class SolplanetApi:
         """Get meter data."""
         _LOGGER.debug("Getting meter data")
         response = await self.client.get("getdevdata.cgi?device=3")
+        return self._create_class_from_dict(GetMeterDataResponse, response)
+
+    async def get_submeter_data(self) -> GetMeterDataResponse:
+        """Get submeter data."""
+        _LOGGER.debug("Getting submeter data")
+        response = await self.client.get("getdevdata.cgi?device=3&submeter=1")
         return self._create_class_from_dict(GetMeterDataResponse, response)
 
     async def get_meter_info(self) -> GetMeterInfoResponse:
@@ -824,7 +846,7 @@ class SolplanetApi:
         current = await self.get_schedule()
         schedule = BatterySchedule.encode_schedule(
             current["slots"],
-            pin=pin, 
+            pin=pin,
             pout=current["Pout"])
         request = SetScheduleRequest(value=schedule)
         await self.client.post("setting.cgi", request)
@@ -834,7 +856,7 @@ class SolplanetApi:
         current = await self.get_schedule()
         schedule = BatterySchedule.encode_schedule(
             current["slots"],
-            pin=current["Pin"], 
+            pin=current["Pin"],
             pout=pout)
         request = SetScheduleRequest(value=schedule)
         await self.client.post("setting.cgi", request)
